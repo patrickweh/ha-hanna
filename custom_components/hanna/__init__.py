@@ -252,9 +252,9 @@ class HannaCloudAPI:
         try:
             async with async_timeout.timeout(10):
                 async with self.session.post(
-                    f"{self.base_url}/graphql",
-                    json=devices_query,
-                    headers=headers
+                        f"{self.base_url}/graphql",
+                        json=devices_query,
+                        headers=headers
                 ) as response:
                     response_text = await response.text()
                     _LOGGER.debug("Devices response status: %s", response.status)
@@ -272,11 +272,16 @@ class HannaCloudAPI:
                             _LOGGER.error("Unexpected devices response: %s", data)
                             raise UpdateFailed("Unexpected response format")
 
-                    # Token might be expired, try to re-authenticate
-                    if response.status == 401:
+                    # Token might be expired - handle both 401 and 403
+                    if response.status in [401, 403]:
+                        _LOGGER.info("Token expired (HTTP %s), attempting to re-authenticate", response.status)
                         self.token = None
                         if await self.authenticate():
+                            _LOGGER.info("Re-authentication successful, retrying request")
                             return await self.get_devices()
+                        else:
+                            _LOGGER.error("Re-authentication failed")
+                            raise UpdateFailed("Re-authentication failed")
 
                     _LOGGER.error("Failed to get devices: HTTP %s - %s", response.status, response_text)
                     raise UpdateFailed(f"Failed to get devices: {response.status}")
@@ -316,9 +321,9 @@ class HannaCloudAPI:
         try:
             async with async_timeout.timeout(10):
                 async with self.session.post(
-                    f"{self.base_url}/graphql",
-                    json=readings_query,
-                    headers=headers
+                        f"{self.base_url}/graphql",
+                        json=readings_query,
+                        headers=headers
                 ) as response:
                     response_text = await response.text()
                     _LOGGER.debug("Device readings response status: %s", response.status)
@@ -331,11 +336,16 @@ class HannaCloudAPI:
                             _LOGGER.debug("Processed readings dict: %s", readings_dict)
                             return readings_dict
 
-                    # Token might be expired, try to re-authenticate
-                    if response.status == 401:
+                    # Token might be expired - handle both 401 and 403
+                    if response.status in [401, 403]:
+                        _LOGGER.info("Token expired (HTTP %s), attempting to re-authenticate", response.status)
                         self.token = None
                         if await self.authenticate():
+                            _LOGGER.info("Re-authentication successful, retrying request")
                             return await self.get_device_readings(device_ids)
+                        else:
+                            _LOGGER.error("Re-authentication failed")
+                            raise UpdateFailed("Re-authentication failed")
 
                     raise UpdateFailed(f"Failed to get device readings: {response.status}")
         except asyncio.TimeoutError:
