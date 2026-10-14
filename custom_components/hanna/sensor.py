@@ -59,8 +59,8 @@ async def async_setup_entry(
 
             _LOGGER.debug(f"Setting up sensors for device {device_id}: {device_name}")
 
-            # Always create these standard sensors for BL12x devices
-            if device.get("modelGroup") == "BL12x":
+            # get_devices only returns BL12x, BL13x and BL13xs, which share the reading format
+            if device.get("modelGroup") in ("BL12x", "BL13x", "BL13xs"):
                 # Main measurement sensors
                 entities.extend([
                     HannaCloudSensor(
@@ -104,6 +104,21 @@ async def async_setup_entry(
                         config_entry.data[CONF_EMAIL]
                     )
                 ])
+
+                # BL13x also reports the air temperature
+                readings = coordinator.data.get("readings", {}).get(device_id, {})
+                parameters = (readings.get("messages") or {}).get("parameters") or []
+                if any(isinstance(p, dict) and p.get("name") == "airTemp" for p in parameters):
+                    entities.append(
+                        HannaCloudSensor(
+                            coordinator,
+                            device,
+                            "Air Temperature",
+                            UnitOfTemperature.CELSIUS,
+                            SensorDeviceClass.TEMPERATURE,
+                            config_entry.data[CONF_EMAIL]
+                        )
+                    )
 
                 # Pump status sensors
                 entities.extend([
@@ -266,7 +281,8 @@ class HannaCloudSensor(CoordinatorEntity, SensorEntity):
                     "Temperature": "temp",
                     "Redox": "orp",
                     "Chlorine": "cl",
-                    "AcidBase": "acidBase"
+                    "AcidBase": "acidBase",
+                    "Air Temperature": "airTemp",
                 }
 
                 target_param = parameter_map.get(self._sensor_type)
